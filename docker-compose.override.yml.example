@@ -1,0 +1,40 @@
+version: '3.7'
+services:
+
+    #PHP Service
+    app:
+        environment:
+            SERVICE_NAME: app
+            SERVICE_TAGS: dev
+        working_dir: /var/www/html/
+        volumes:
+            - ./:/var/www/html/
+            - .docker/php/laravel.ini:/usr/local/etc/php/conf.d/laravel.ini
+
+    #Nginx Service
+    webserver:
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - ./:/var/www/html/
+            - .docker/nginx/conf.d/:/etc/nginx/conf.d/
+
+    #MySQL Service
+    db:
+        image: postgres
+        container_name: db
+        restart: unless-stopped
+        tty: true
+        networks:
+        - app-network
+        ports:
+            - "5432:5432"
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_DB: school_masterdata
+            POSTGRES_PASSWORD: 123456
+            SERVICE_TAGS: dev
+            SERVICE_NAME: pgsql
+        volumes:
+            - dbdata:/var/lib/postgresql/data
