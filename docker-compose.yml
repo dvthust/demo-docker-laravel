@@ -1,0 +1,33 @@
+version: '3.7'
+services:
+
+    #PHP Service
+    app:
+        build:
+            context: .docker/php
+            dockerfile: .docker/php/Dockerfile
+        image: cloudsigma.com/php
+        container_name: app
+        restart: unless-stopped
+        tty: true
+        networks:
+            - app-network
+
+    #Nginx Service
+    webserver:
+        image: nginx:alpine
+        container_name: webserver
+        restart: unless-stopped
+        tty: true
+        networks:
+            - app-network
+
+#Docker Networks
+networks:
+    app-network:
+        driver: bridge
+
+#Volumes
+volumes:
+    dbdata:
+        driver: local
