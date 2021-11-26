@@ -5,8 +5,8 @@ services:
     app:
         build:
             context: .
-            dockerfile: .docker/php/Dockerfile
-        image: cloudsigma.com/php
+            dockerfile: .docker/Dockerfile
+        image: app:latest
         container_name: app
         restart: unless-stopped
         tty: true
