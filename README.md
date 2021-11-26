@@ -1,1 +1,2 @@
-- [Tham khảo](https://www.cloudsigma.com/deploying-laravel-nginx-and-mysql-with-docker-compose/)
+- [Deploying Laravel, Nginx, and MySQL with Docker Compose](https://www.cloudsigma.com/deploying-laravel-nginx-and-mysql-with-docker-compose/)
+- [Docker for development: Using Docker in Laravel and PHP development (Part 2)](https://blog.pusher.com/docker-for-development-laravel-php/)
