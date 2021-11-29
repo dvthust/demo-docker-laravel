@@ -1,33 +1,94 @@
-version: '3.7'
+version: '3'
 services:
-
-    #PHP Service
-    app:
+    # We need to run the FPM container for our application
+    laravel.fpm:
         build:
             context: .
             dockerfile: .docker/Dockerfile
-        image: app:latest
-        container_name: app
+            target: fpm_server
+        image: demo-docker/fpm_server
+        # We can override any env values here.
+        # By default the .env in the project root will be loaded as the environment for all containers
+        environment:
+            APP_DEBUG: "true"
+        # Mount the codebase, so any code changes we make will be propagated to the running application
+        volumes:
+            # Here we mount in our codebase so any changes are immediately reflected into the container
+            - '.:/var/www/html'
+        networks:
+            - app-networks
+
+    # Run the web server container for static content, and proxying to our FPM container
+    laravel.web:
+        build:
+            context: .
+            dockerfile: .docker/Dockerfile
+            target: web_server
+        image: demo-docker/web_server
+        # Expose our application port (80) through a port on our local machine (8080)
+        ports:
+            - '8080:80'
+        environment:
+            # We need to pass in the new FPM hst as the name of the fpm container on port 9000
+            FPM_HOST: "laravel.fpm:9000"
+        # Mount the public directory into the container so we can serve any static files directly when they change
+        volumes:
+            # Here we mount in our codebase so any changes are immediately reflected into the container
+            - './public:/var/www/html/public'
+        networks:
+            - app-networks
+    # Run the Laravel Scheduler
+    laravel.cron:
+        build:
+            context: .
+            dockerfile: .docker/Dockerfile
+            target: cron
+        image: demo-docker/cron
+        # Here we mount in our codebase so any changes are immediately reflected into the container
+        volumes:
+            # Here we mount in our codebase so any changes are immediately reflected into the container
+            - '.:/var/www/html'
+        networks:
+            - app-networks
+    # Run the frontend, and file watcher in a container, so any changes are immediately compiled and servable
+    laravel.frontend:
+        build:
+            context: .
+            dockerfile: .docker/Dockerfile
+            target: frontend
+        # Override the default CMD, so we can watch changes to frontend files, and re-transpile them.
+        command: ["npm", "run", "watch"]
+        image: demo-docker/frontend
+        volumes:
+            # Here we mount in our codebase so any changes are immediately reflected into the container
+            - '.:/var/www/html'
+            # Add node_modeules as singular volume.
+            # This prevents our local node_modules from being propagated into the container,
+            # So the node_modules can be compiled for each of the different architectures (Local, Image)
+            - '/var/www/html/node_modules/'
+        networks:
+            - app-networks
+
+    pgsql:
+        image: postgres
+        container_name: pgsql
         restart: unless-stopped
         tty: true
         networks:
-            - app-network
+            - app-networks
+        ports:
+            - "5432:5432"
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_DB: school_masterdata
+            POSTGRES_PASSWORD: 123456
+            SERVICE_TAGS: dev
+            SERVICE_NAME: pgsql
+        volumes:
+            - demo-docker-pgsql:/var/lib/postgresql/data
 
-    #Nginx Service
-    webserver:
-        image: nginx:alpine
-        container_name: webserver
-        restart: unless-stopped
-        tty: true
-        networks:
-            - app-network
-
-#Docker Networks
 networks:
-    app-network:
-        driver: bridge
+    app-networks:
 
-#Volumes
 volumes:
-    dbdata:
-        driver: local
+    demo-docker-pgsql:

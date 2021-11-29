@@ -1,63 +1,160 @@
-FROM php:8.0-fpm
+# Create args for PHP extensions and PECL packages we need to install.
+# This makes it easier if we want to install packages,
+# as we have to install them in multiple places.
+# This helps keep ou Dockerfiles DRY -> https://bit.ly/dry-code
+# You can see a list of required extensions for Laravel here: https://laravel.com/docs/8.x/deployment#server-requirements
+ARG PHP_EXTS="bcmath ctype fileinfo mbstring pdo pdo_mysql tokenizer dom pcntl"
+ARG PHP_PECL_EXTS="redis"
 
-# Set working directory
-WORKDIR /var/www
+# We need to build the Composer base to reuse packages we've installed
+FROM composer:2.1 as composer_base
 
-COPY .docker/start.sh /start.sh
-COPY .docker/supervisord.conf /etc/supervisord.conf
+# We need to declare that we want to use the args in this build step
+ARG PHP_EXTS
+ARG PHP_PECL_EXTS
 
-# Add docker php ext repo
-ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+# First, create the application directory, and some auxilary directories for scripts and such
+RUN mkdir -p /var/www/html /var/www/html/bin
 
-# Install php extensions
-RUN chmod +x /usr/local/bin/install-php-extensions && sync && \
-    install-php-extensions mbstring pdo_mysql zip exif pcntl gd memcached
+# Next, set our working directory
+WORKDIR /var/www/html
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libpng-dev \
-    libjpeg62-turbo-dev \
-    libfreetype6-dev \
-    locales \
-    zip \
-    jpegoptim optipng pngquant gifsicle \
-    unzip \
-    git \
-    curl \
-    lua-zlib-dev \
-    libmemcached-dev
+# We need to create a composer group and user, and create a home directory for it, so we keep the rest of our image safe,
+# And not accidentally run malicious scripts
+RUN addgroup -S composer \
+    && adduser -S composer -G composer \
+    && chown -R composer /var/www/html \
+    && apk add --virtual build-dependencies --no-cache ${PHPIZE_DEPS} openssl ca-certificates libxml2-dev oniguruma-dev \
+    && docker-php-ext-install -j$(nproc) ${PHP_EXTS} \
+    && pecl install ${PHP_PECL_EXTS} \
+    && docker-php-ext-enable ${PHP_PECL_EXTS} \
+    && apk del build-dependencies
 
-# Install supervisor
-RUN apt-get install -y supervisor
+# Next we want to switch over to the composer user before running installs.
+# This is very important, so any extra scripts that composer wants to run,
+# don't have access to the root filesystem.
+# This especially important when installing packages from unverified sources.
+USER composer
 
-# Install composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# Copy in our dependency files.
+# We want to leave the rest of the code base out for now,
+# so Docker can build a cache of this layer,
+# and only rebuild when the dependencies of our application changes.
+COPY --chown=composer composer.json composer.lock ./
 
-# Clear cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+# Install all the dependencies without running any installation scripts.
+# We skip scripts as the code base hasn't been copied in yet and script will likely fail,
+# as `php artisan` available yet.
+# This also helps us to cache previous runs and layers.
+# As long as comoser.json and composer.lock doesn't change the install will be cached.
+RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
 
-# Add user for laravel application
-RUN groupadd -g 1000 www
-RUN useradd -u 1000 -ms /bin/bash -g www www
+# Copy in our actual source code so we can run the installation scripts we need
+# At this point all the PHP packages have been installed,
+# and all that is left to do, is to run any installation scripts which depends on the code base
+COPY --chown=composer . .
 
-# Copy code to /var/www
-COPY --chown=www:www-data . /var/www
+# Now that the code base and packages are all available,
+# we can run the install again, and let it run any install scripts.
+RUN composer install --no-dev --prefer-dist
 
-# Assign permissions of the working directory to the www-data user
-RUN chown -R www-data:www-data \
-        /var/www/storage \
-        /var/www/bootstrap/cache \
-        /var/www/.docker/start.sh
+# For the frontend, we want to get all the Laravel files,
+# and run a production compile
+FROM node:14 as frontend
 
-# PHP Error Log Files
-RUN mkdir /var/log/php
-RUN touch /var/log/php/errors.log && chmod 777 /var/log/php/errors.log
+# We need to copy in the Laravel files to make everything is available to our frontend compilation
+COPY --from=composer_base /var/www/html /var/www/html
 
-RUN chmod 755 /start.sh
+WORKDIR /var/www/html
 
-# Deployment steps
-#RUN composer install --optimize-autoloader --no-dev
+# We want to install all the NPM packages,
+# and compile the MIX bundle for production
+RUN npm install && \
+    npm run production
 
-EXPOSE 443 80
-CMD ["/start.sh"]
+# For running things like migrations, and queue jobs,
+# we need a CLI container.
+# It contains all the Composer packages,
+# and just the basic CLI "stuff" in order for us to run commands,
+# be that queues, migrations, tinker etc.
+FROM php:8.0-alpine as cli
+
+# We need to declare that we want to use the args in this build step
+ARG PHP_EXTS
+ARG PHP_PECL_EXTS
+
+WORKDIR /var/www/html
+
+# We need to install some requirements into our image,
+# used to compile our PHP extensions, as well as install all the extensions themselves.
+# You can see a list of required extensions for Laravel here: https://laravel.com/docs/8.x/deployment#server-requirements
+RUN apk add --virtual build-dependencies --no-cache ${PHPIZE_DEPS} openssl ca-certificates libxml2-dev oniguruma-dev && \
+    docker-php-ext-install -j$(nproc) ${PHP_EXTS} && \
+    pecl install ${PHP_PECL_EXTS} && \
+    docker-php-ext-enable ${PHP_PECL_EXTS} && \
+    apk del build-dependencies
+
+# Next we have to copy in our code base from our initial build which we installed in the previous stage
+COPY --from=composer_base /var/www/html /var/www/html
+COPY --from=frontend /var/www/html/public /var/www/html/public
+
+# We need a stage which contains FPM to actually run and process requests to our PHP application.
+FROM php:8.0-fpm-alpine as fpm_server
+
+# We need to declare that we want to use the args in this build step
+ARG PHP_EXTS
+ARG PHP_PECL_EXTS
+
+WORKDIR /var/www/html
+
+RUN apk add --virtual build-dependencies --no-cache ${PHPIZE_DEPS} openssl ca-certificates libxml2-dev oniguruma-dev && \
+    docker-php-ext-install -j$(nproc) ${PHP_EXTS} && \
+    pecl install ${PHP_PECL_EXTS} && \
+    docker-php-ext-enable ${PHP_PECL_EXTS} && \
+    apk del build-dependencies
+
+# We have to copy in our code base from our initial build which we installed in the previous stage
+COPY --from=composer_base --chown=www-data /var/www/html /var/www/html
+COPY --from=frontend --chown=www-data /var/www/html/public /var/www/html/public
+
+# We want to cache the event, routes, and views so we don't try to write them when we are in Kubernetes.
+# Docker builds should be as immutable as possible, and this removes a lot of the writing of the live application.
+RUN php artisan event:cache && \
+    php artisan route:cache && \
+    php artisan view:cache
+
+# As FPM uses the www-data user when running our application,
+# we need to make sure that we also use that user when starting up,
+# so our user "owns" the application when running
+USER  www-data
+
+# We need an nginx container which can pass requests to our FPM container,
+# as well as serve any static content.
+FROM nginx:1.20-alpine as web_server
+
+WORKDIR /var/www/html
+
+# We need to add our NGINX template to the container for startup,
+# and configuration.
+COPY .docker/nginx.conf.template /etc/nginx/templates/default.conf.template
+
+# Copy in ONLY the public directory of our project.
+# This is where all the static assets will live, which nginx will serve for us.
+COPY --from=frontend /var/www/html/public /var/www/html/public
+
+# We need a CRON container to the Laravel Scheduler.
+# We'll start with the CLI container as our base,
+# as we only need to override the CMD which the container starts with to point at cron
+FROM cli as cron
+
+WORKDIR /var/www/html
+
+# We want to create a laravel.cron file with Laravel cron settings, which we can import into crontab,
+# and run crond as the primary command in the forground
+RUN touch laravel.cron && \
+    echo "* * * * * cd /var/www/html && php artisan schedule:run" >> laravel.cron && \
+    crontab laravel.cron
+
+CMD ["crond", "-l", "2", "-f"]
+
+FROM cli
