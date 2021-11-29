@@ -1,12 +1,13 @@
 version: '3'
 services:
     # We need to run the FPM container for our application
-    laravel.fpm:
+    fpm.server:
         build:
             context: .
             dockerfile: .docker/Dockerfile
             target: fpm_server
         image: demo-docker/fpm_server
+        container_name: fpm_server
         # We can override any env values here.
         # By default the .env in the project root will be loaded as the environment for all containers
         environment:
@@ -19,18 +20,19 @@ services:
             - app-networks
 
     # Run the web server container for static content, and proxying to our FPM container
-    laravel.web:
+    web.server:
         build:
             context: .
             dockerfile: .docker/Dockerfile
             target: web_server
         image: demo-docker/web_server
+        container_name: web_server
         # Expose our application port (80) through a port on our local machine (8080)
         ports:
             - '8080:80'
         environment:
             # We need to pass in the new FPM hst as the name of the fpm container on port 9000
-            FPM_HOST: "laravel.fpm:9000"
+            FPM_HOST: "fpm.server:9000"
         # Mount the public directory into the container so we can serve any static files directly when they change
         volumes:
             # Here we mount in our codebase so any changes are immediately reflected into the container
@@ -38,12 +40,13 @@ services:
         networks:
             - app-networks
     # Run the Laravel Scheduler
-    laravel.cron:
+    cron:
         build:
             context: .
             dockerfile: .docker/Dockerfile
             target: cron
         image: demo-docker/cron
+        container_name: cron
         # Here we mount in our codebase so any changes are immediately reflected into the container
         volumes:
             # Here we mount in our codebase so any changes are immediately reflected into the container
@@ -51,11 +54,12 @@ services:
         networks:
             - app-networks
     # Run the frontend, and file watcher in a container, so any changes are immediately compiled and servable
-    laravel.frontend:
+    frontend:
         build:
             context: .
             dockerfile: .docker/Dockerfile
             target: frontend
+        container_name: frontend
         # Override the default CMD, so we can watch changes to frontend files, and re-transpile them.
         command: ["npm", "run", "watch"]
         image: demo-docker/frontend

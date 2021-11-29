@@ -24,7 +24,8 @@ WORKDIR /var/www/html
 RUN addgroup -S composer \
     && adduser -S composer -G composer \
     && chown -R composer /var/www/html \
-    && apk add --virtual build-dependencies --no-cache ${PHPIZE_DEPS} openssl ca-certificates libxml2-dev oniguruma-dev libpq postgresql-dev g++ \
+    && apk add --update --no-cache libpq \
+    && apk add --virtual build-dependencies --no-cache ${PHPIZE_DEPS} openssl ca-certificates libxml2-dev oniguruma-dev postgresql-dev g++ \
     && docker-php-ext-install -j$(nproc) ${PHP_EXTS} \
     && pecl install ${PHP_PECL_EXTS} \
     && docker-php-ext-enable ${PHP_PECL_EXTS} \
@@ -88,7 +89,8 @@ WORKDIR /var/www/html
 # We need to install some requirements into our image,
 # used to compile our PHP extensions, as well as install all the extensions themselves.
 # You can see a list of required extensions for Laravel here: https://laravel.com/docs/8.x/deployment#server-requirements
-RUN apk add --virtual build-dependencies --no-cache ${PHPIZE_DEPS} openssl ca-certificates libxml2-dev oniguruma-dev libpq postgresql-dev g++ && \
+RUN apk add --update --no-cache libpq && \
+    apk add --virtual build-dependencies --no-cache ${PHPIZE_DEPS} openssl ca-certificates libxml2-dev oniguruma-dev postgresql-dev g++ && \
     docker-php-ext-install -j$(nproc) ${PHP_EXTS} && \
     pecl install ${PHP_PECL_EXTS} && \
     docker-php-ext-enable ${PHP_PECL_EXTS} && \
@@ -108,13 +110,7 @@ ARG PHP_PECL_EXTS
 WORKDIR /var/www/html
 
 RUN apk add --update --no-cache libpq && \
-    apk add --no-cache --virtual .build-deps \
-        $PHPIZE_DEPS \
-        postgresql-dev \
-        g++ && \
-    apk del .build-deps
-
-RUN apk add --virtual build-dependencies --no-cache ${PHPIZE_DEPS} openssl ca-certificates libxml2-dev oniguruma-dev libpq postgresql-dev g++ && \
+    apk add --virtual build-dependencies --no-cache ${PHPIZE_DEPS} openssl ca-certificates libxml2-dev oniguruma-dev postgresql-dev g++ && \
     docker-php-ext-install -j$(nproc) ${PHP_EXTS} && \
     pecl install ${PHP_PECL_EXTS} && \
     docker-php-ext-enable ${PHP_PECL_EXTS} && \

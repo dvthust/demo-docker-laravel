@@ -4,6 +4,7 @@
 - [Advanced Docker Compose Configuration](https://runnable.com/docker/advanced-docker-compose-configuration)
 - [Making sense of Docker Compose overrides](https://medium.com/it-dead-inside/making-sense-of-docker-compose-overrides-efb757460d64)
 - [Running the Laravel Scheduler and Queue with Docker](https://laravel-news.com/laravel-scheduler-queue-docker)
+- [Installing PDO Postgres SQL driver on official PHP Alpine Docker image](https://www.elliotjreed.com/blog/2019-07-15/add-postgres-sql-to-apline-php-docker-image)
 
 ##### Multi stage builds
 - [Here are the Dockerfile tips you can use to get your builds faster and safer](https://dev.to/mtk3d/here-are-the-dockerfile-tips-you-can-use-to-get-your-builds-faster-and-safer-4o1a)
@@ -30,3 +31,6 @@
 
 ##### Kubernetes
 - [Deploying Laravel in Kubernetes](https://chris-vermeulen.com/laravel-in-kubernetes/)
+
+##### Alpine Linux
+- [Reduce Docker image sizes using Alpine](https://www.sandtable.com/reduce-docker-image-sizes-using-alpine/)
