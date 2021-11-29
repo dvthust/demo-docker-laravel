@@ -1,5 +1,45 @@
 version: '3'
 services:
+    # We need to run the FPM container for our application
+    fpm.server:
+        build:
+            context: .
+            dockerfile: .docker/Dockerfile
+            target: fpm_server
+        image: demo-docker/fpm_server
+        container_name: fpm_server
+        # We can override any env values here.
+        # By default the .env in the project root will be loaded as the environment for all containers
+        environment:
+            APP_DEBUG: "true"
+        # Mount the codebase, so any code changes we make will be propagated to the running application
+        volumes:
+            # Here we mount in our codebase so any changes are immediately reflected into the container
+            - '.:/var/www/html'
+        networks:
+            - app-networks
+
+    # Run the web server container for static content, and proxying to our FPM container
+    web.server:
+        build:
+            context: .
+            dockerfile: .docker/Dockerfile
+            target: web_server
+        image: demo-docker/web_server
+        container_name: web_server
+        # Expose our application port (80) through a port on our local machine (8080)
+        ports:
+            - '8080:80'
+        environment:
+            # We need to pass in the new FPM hst as the name of the fpm container on port 9000
+            FPM_HOST: "fpm.server:9000"
+        # Mount the public directory into the container so we can serve any static files directly when they change
+        volumes:
+            # Here we mount in our codebase so any changes are immediately reflected into the container
+            - './public:/var/www/html/public'
+        networks:
+            - app-networks
+    # Run the Laravel Scheduler
     cron:
         build:
             context: .

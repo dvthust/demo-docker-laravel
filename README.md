@@ -10,6 +10,7 @@
 - [Here are the Dockerfile tips you can use to get your builds faster and safer](https://dev.to/mtk3d/here-are-the-dockerfile-tips-you-can-use-to-get-your-builds-faster-and-safer-4o1a)
 - [Read this before you start using the multistage builds for your docker images](https://dev.to/mtk3d/read-this-before-you-start-using-the-multistage-builds-for-your-docker-images-21e7)
 - [Dockerize your Laravel app - part 2 : GitLab and multi-stage build](https://cylab.be/blog/85/dockerize-your-laravel-app-part-2-gitlab-and-multi-stage-build)
+- [Using Multi-Stage Builds to Simplify And Standardize Build Processes](https://medium.com/capital-one-tech/multi-stage-builds-and-dockerfile-b5866d9e2f84)
 
 ##### CMD vs ENTRYPOINT
 - [Docker CMD vs ENTRYPOINT: What’s The Difference & How To Choose
