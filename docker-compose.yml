@@ -41,6 +41,3 @@ services:
             - app-networks
 networks:
     app-networks:
-
-volumes:
-    demo-docker-pgsql:
