@@ -12,7 +12,6 @@ services:
         # By default the .env in the project root will be loaded as the environment for all containers
         environment:
             APP_DEBUG: "true"
-        # Mount the codebase, so any code changes we make will be propagated to the running application
         volumes:
             # Here we mount in our codebase so any changes are immediately reflected into the container
             - '.:/var/www/html'
@@ -34,6 +33,7 @@ services:
             # We need to pass in the new FPM hst as the name of the fpm container on port 9000
             FPM_HOST: "fpm.server:9000"
         # Mount the public directory into the container so we can serve any static files directly when they change
+        working_dir: /var/www/html
         volumes:
             # Here we mount in our codebase so any changes are immediately reflected into the container
             - './public:/var/www/html/public'
